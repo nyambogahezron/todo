@@ -17,7 +17,7 @@ import Animated, {
 export default function ViewNoteScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
 	const theme = useTheme();
-	const { theme: currentTheme, themeClrs } = ThemeContext();
+	const { themeName: currentTheme, themeClrs } = ThemeContext();
 
 	// Animation for note view entrance
 	const noteOpacity = useSharedValue(0);

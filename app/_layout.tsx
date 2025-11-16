@@ -6,6 +6,10 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { initializeDatabase } from '@/lib/db';
 import SCREENS from './navigation/screens';
 import DrawerContent from './navigation/Drawer';
+import { 
+	registerForPushNotificationsAsync, 
+	setupNotificationListeners 
+} from '@/utils/notificationService';
 
 const Drawer = createDrawerNavigator();
 
@@ -28,6 +32,32 @@ export default function App() {
 		};
 
 		initDb();
+	}, []);
+
+	// Initialize push notifications
+	useEffect(() => {
+		// Register for push notifications
+		registerForPushNotificationsAsync();
+
+		// Setup notification listeners
+		const cleanup = setupNotificationListeners(
+			// On notification received while app is foregrounded
+			(notification) => {
+				console.log('Notification received:', notification);
+			},
+			// On notification tapped
+			(response) => {
+				console.log('Notification tapped:', response);
+				// You can navigate to specific screens based on notification data
+				// const { todoId } = response.notification.request.content.data;
+				// if (todoId) {
+				//   // Navigate to the todo detail screen
+				// }
+			}
+		);
+
+		// Cleanup listeners on unmount
+		return cleanup;
 	}, []);
 
 	// Show loading state while database initializes

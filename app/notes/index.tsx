@@ -26,7 +26,7 @@ import Animated, {
 export default function NotesScreen() {
 	const [menuVisible, setMenuVisible] = React.useState(false);
 	const theme = useTheme();
-	const { theme: currentTheme, themeClrs } = ThemeContext();
+	const { themeName: currentTheme, themeClrs } = ThemeContext();
 
 	// Get all notes using Prisma
 	const { notes: allNotes, loading, refresh } = useNotes();

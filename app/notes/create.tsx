@@ -16,7 +16,7 @@ import Animated, {
 
 export default function CreateNoteScreen() {
 	const theme = useTheme();
-	const { theme: currentTheme, themeClrs } = ThemeContext();
+	const { themeName: currentTheme, themeClrs } = ThemeContext();
 
 	// Animation for editor entrance
 	const editorOpacity = useSharedValue(0);
