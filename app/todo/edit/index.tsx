@@ -4,8 +4,7 @@ import { View, StyleSheet, TextInput, Text, TouchableOpacity, ScrollView } from 
 import { useTheme } from '@/context/ThemeContext';
 import CustomHeader from '@/components/ui/CustomHeader';
 import { useRoute } from '@react-navigation/native';
-import { useTodo, updateTodo, TODO_TABLE } from '@/store/todo';
-import { useStore } from 'tinybase/ui-react';
+import { useTodo, useUpdateTodo } from '@/store/todo.prisma';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import Animated, { 
@@ -24,50 +23,12 @@ export default function EditTodoScreen() {
 	const routeParams = route.params as { id: string };
 	const { themeClrs } = useTheme();
 	
-	// Get the store instance
-	const store = useStore();
+	// Get the todo ID from route params
+	const todoId = routeParams?.id ? String(routeParams.id) : '';
 	
-	// Debug the route params to find the correct ID
-	console.log('Route params:', routeParams);
-	
-	// Try to find the correct ID
-	const [correctId, setCorrectId] = useState<string>('');
-	
-	// Find the correct ID when the store is available
-	useEffect(() => {
-		if (!store || !routeParams?.id) return;
-		
-		const paramId = String(routeParams.id);
-		console.log('Param ID:', paramId);
-		
-		// Check if the ID exists directly
-		if (store.hasRow(TODO_TABLE, paramId)) {
-			console.log('Found direct match for ID:', paramId);
-			setCorrectId(paramId);
-			return;
-		}
-		
-		// If the direct ID doesn't work, try to find the todo by scanning the table
-		const table = store.getTable(TODO_TABLE) || {};
-		console.log('All todos:', Object.keys(table));
-		
-		// Check if any todo has this ID in its data
-		for (const [rowId, rowData] of Object.entries(table)) {
-			if (rowData.id === paramId || rowId === paramId) {
-				console.log('Found matching todo with ID:', rowId);
-				setCorrectId(rowId);
-				return;
-			}
-		}
-		
-		// Default to the param ID if nothing found
-		setCorrectId(paramId);
-	}, [store, routeParams]);
-	
-	// Use the todo data with the correct ID
-	const todoData = useTodo(correctId);
-	console.log('Using correct ID:', correctId);
-	console.log('Todo Data:', todoData);
+	// Use the todo data with Prisma
+	const todoData = useTodo(todoId);
+	const updateTodo = useUpdateTodo();
 	
 	// State for form fields
 	const [text, setText] = useState('');
@@ -149,26 +110,19 @@ export default function EditTodoScreen() {
 	}, [todoData]);
 	
 	// Handle save
-	const handleSave = () => {
-		if (store && correctId) {
-			console.log('Saving todo with correct ID:', correctId);
-			
+	const handleSave = async () => {
+		if (todoId) {
 			try {
-				// Update the todo using direct store access for reliability
-				const now = new Date().toISOString();
-				store.setPartialRow(TODO_TABLE, correctId, {
+				await updateTodo(todoId, {
 					text,
 					priority,
 					dueDate: dueDate ? dueDate.toISOString() : '',
-					updatedAt: now
 				});
 				
 				navigation.goBack();
 			} catch (error) {
 				console.error('Error updating todo:', error);
 			}
-		} else {
-			console.error('Store or ID missing:', { store, correctId });
 		}
 	};
 	

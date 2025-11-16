@@ -1,86 +1,44 @@
-import React from 'react';
-import * as SQLite from 'expo-sqlite';
-import { Platform, StyleSheet } from 'react-native';
-import { createStore, Store } from 'tinybase';
-import { createLocalPersister } from 'tinybase/persisters/persister-browser';
-import { createExpoSqlitePersister } from 'tinybase/persisters/persister-expo-sqlite';
-import {
-	Provider,
-	useCreatePersister,
-	useCreateStore,
-} from 'tinybase/ui-react';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { TODO_TABLE, todoTableSchema, setupTodoTable } from '@/store/todo';
-import { 
-	SHOPPING_LISTS_TABLE, 
-	SHOPPING_ITEMS_TABLE,
-	shoppingListsTableSchema, 
-	shoppingItemsTableSchema,
-	setupShoppingTables 
-} from '@/store/shopping';
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { initializeDatabase } from '@/lib/db';
 import SCREENS from './navigation/screens';
 import DrawerContent from './navigation/Drawer';
-
-// Add global type definition for the store
-declare global {
-	interface Window {
-		tinybaseStore: Store;
-	}
-}
 
 const Drawer = createDrawerNavigator();
 
 // The main app.
 export default function App() {
-	// Initialize the (memoized) TinyBase store and persist it.
-	const store = useCreateStore(() => {
-		const newStore = createStore().setTablesSchema({
-			[TODO_TABLE]: todoTableSchema,
-			[SHOPPING_LISTS_TABLE]: shoppingListsTableSchema,
-			[SHOPPING_ITEMS_TABLE]: shoppingItemsTableSchema
-		});
-		
-		// Initialize the todo table
-		setupTodoTable(newStore);
-		
-		// Initialize shopping tables
-		setupShoppingTables(newStore);
+	const [dbInitialized, setDbInitialized] = useState(false);
 
-		// Make store globally accessible
-		if (typeof window !== 'undefined') {
-			window.tinybaseStore = newStore;
-		}
+	// Initialize Prisma database
+	useEffect(() => {
+		const initDb = async () => {
+			try {
+				await initializeDatabase();
+				setDbInitialized(true);
+			} catch (error) {
+				console.error('Failed to initialize database:', error);
+				// Still set initialized to true to allow app to render
+				// User will see errors if database operations fail
+				setDbInitialized(true);
+			}
+		};
 
-		return newStore;
-	});
+		initDb();
+	}, []);
 
-	const useAndStartPersister = (store: Store) =>
-		// Persist store to Expo SQLite or local storage; load once, then auto-save.
-		useCreatePersister(
-			store,
-			(store) =>
-				Platform.OS === 'web'
-					? createLocalPersister(store, 'todos')
-					: createExpoSqlitePersister(
-							store,
-							SQLite.openDatabaseSync('todos.db')
-					  ),
-			[],
-			(persister) =>
-				persister.load().then(() => {
-					persister.startAutoSave();
-					return;
-				})
-		);
-	useAndStartPersister(store);
+	// Show loading state while database initializes
+	if (!dbInitialized) {
+		return null; // Or return a loading component
+	}
 
 	return (
 		<GestureHandlerRootView style={styles.container}>
-			<Provider store={store}>
-				<ThemeProvider>
-						<Drawer.Navigator
+			<ThemeProvider>
+				<Drawer.Navigator
 							drawerContent={(props) => <DrawerContent {...props} />}
 							screenOptions={{
 								headerShown: false,
@@ -116,9 +74,8 @@ export default function App() {
 							<Drawer.Screen name='Profile' component={SCREENS.Profile} />
 							<Drawer.Screen name='Settings' component={SCREENS.SettingsScreen} />
 							<Drawer.Screen name='EditTodo' component={SCREENS.EditTodoScreen} />
-						</Drawer.Navigator>
-				</ThemeProvider>
-			</Provider>
+				</Drawer.Navigator>
+			</ThemeProvider>
 		</GestureHandlerRootView>
 	);
 }

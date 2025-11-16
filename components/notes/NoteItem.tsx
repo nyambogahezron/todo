@@ -9,66 +9,26 @@ import {
 	IconButton,
 } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { formatDateTime } from '../../utils/dateUtils';
 import { LoadingIndicator } from '../ui/LoadingIndicator';
 import { ErrorDisplay } from '../ui/ErrorDisplay';
 import NoteEditor from './NoteEditor';
-import { getStore } from '../../store';
 import { Note } from '../../store/models';
-import { TABLES } from '../../lib/Tables';
+import { useNote, useDeleteNote } from '../../store/notes.prisma';
 
 const NoteItem: React.FC = () => {
-	const store = getStore();
 	const theme = useTheme();
-	const route = useRoute<any>();
 	const navigation = useNavigation<any>();
-	const { id } = route.params;
+	const params = useLocalSearchParams<{ id: string }>();
+	const id = params.id || (useRoute<any>().params?.id as string);
 
-	const [note, setNote] = useState<Note | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<Error | null>(null);
+	const note = useNote(id);
+	const deleteNote = useDeleteNote();
 	const [isEditing, setIsEditing] = useState(false);
-
-	useEffect(() => {
-		loadNote();
-
-		// Set up listener for changes to this specific note
-		if (store) {
-			const listener = () => loadNote();
-			store.addRowListener(TABLES.NOTES, id, listener);
-			return () => {
-				store.removeRowListener(TABLES.NOTES, id, listener);
-			};
-		}
-	}, [id, store]);
-
-	const loadNote = () => {
-		if (!store) {
-			setError(new Error('Store not initialized'));
-			setLoading(false);
-			return;
-		}
-
-		try {
-			setLoading(true);
-			const noteData = store.getRow(TABLES.NOTES, id);
-
-			if (!noteData) {
-				setError(new Error('Note not found'));
-				setNote(null);
-			} else {
-				setNote({ ...noteData, id } as Note);
-				setError(null);
-			}
-		} catch (e) {
-			setError(
-				e instanceof Error ? e : new Error('Unknown error loading note')
-			);
-		} finally {
-			setLoading(false);
-		}
-	};
+	const loading = !note && id;
+	const error = !note && id ? new Error('Note not found') : null;
 
 	const handleDelete = () => {
 		Alert.alert('Delete Note', 'Are you sure you want to delete this note?', [
@@ -77,10 +37,8 @@ const NoteItem: React.FC = () => {
 				text: 'Delete',
 				style: 'destructive',
 				onPress: async () => {
-					if (!store) return;
-
 					try {
-						store.delRow(TABLES.NOTES, id);
+						await deleteNote(id);
 						navigation.goBack();
 					} catch (error) {
 						console.error('Error deleting note:', error);
@@ -139,7 +97,7 @@ const NoteItem: React.FC = () => {
 	}
 
 	if (error) {
-		return <ErrorDisplay error={error} retry={loadNote} />;
+		return <ErrorDisplay error={error} retry={() => {}} />;
 	}
 
 	if (!note) {

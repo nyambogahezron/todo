@@ -17,16 +17,14 @@ import {
 	Dialog,
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
-import { v4 as uuidv4 } from 'uuid';
 import { getCurrentTimestamp } from '../../utils/dateUtils';
 import {
 	actions,
 	RichEditor,
 	RichToolbar,
 } from 'react-native-pell-rich-editor';
-import { getStore } from '../../store';
 import { Note } from '../../store/models';
-import { TABLES } from '../../lib/Tables';
+import { useAddNote, useUpdateNote } from '../../store/notes.prisma';
 
 interface NoteEditorProps {
 	note?: Note;
@@ -34,10 +32,11 @@ interface NoteEditorProps {
 }
 
 const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave }) => {
-	const store = getStore();
 	const navigation = useNavigation();
 	const theme = useTheme();
 	const isEditing = !!note;
+	const addNote = useAddNote();
+	const updateNote = useUpdateNote();
 
 	const richText = React.useRef<RichEditor>(null);
 
@@ -50,33 +49,27 @@ const NoteEditor: React.FC<NoteEditorProps> = ({ note, onSave }) => {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const handleSave = async () => {
-		if (!store || !title.trim()) {
+		if (!title.trim()) {
 			Alert.alert('Error', 'Title is required');
 			return;
 		}
 
 		try {
 			setIsSubmitting(true);
-			const timestamp = getCurrentTimestamp();
 
 			if (isEditing && note) {
 				// Update existing note
-				store.setRow(TABLES.NOTES, note.id, {
-					...note,
+				await updateNote(note.id, {
 					title,
 					content,
 					tags,
-					updatedAt: timestamp,
 				});
 			} else {
 				// Create new note
-				const newNoteId = uuidv4();
-				store.setRow(TABLES.NOTES, newNoteId, {
+				await addNote({
 					title,
 					content,
 					tags,
-					createdAt: timestamp,
-					updatedAt: timestamp,
 				});
 			}
 

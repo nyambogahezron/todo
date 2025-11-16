@@ -3,7 +3,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { priorityColors } from '@/lib/utils';
 import { Bell, Circle, CircleCheckBig } from 'lucide-react-native';
 import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
-import { useDeleteTodo, useTodo, useToggleTodoDone } from '@/store/todo';
+import { useDeleteTodo, useTodo, useToggleTodoDone } from '@/store/todo.prisma';
 import SwipeableRow from '../ui/SwipeableRow';
 import { useNavigation } from '@react-navigation/native';
 
@@ -16,11 +16,26 @@ export default function TodoItem({ id, onEdit }: TodoItemProps) {
 	const { themeClrs } = useTheme();
 	const todoData = useTodo(id);
 
-	const { id: todoId, text, done, priority, dueDate } = todoData;
 	const navigation = useNavigation<any>();
-
-	const handlePress = useToggleTodoDone(id);
-	const handleDelete = useDeleteTodo(id);
+	
+	const toggleTodoDone = useToggleTodoDone(id);
+	const deleteTodo = useDeleteTodo();
+	
+	const handlePress = async () => {
+		if (todoData) {
+			await toggleTodoDone();
+		}
+	};
+	
+	const handleDelete = async () => {
+		await deleteTodo(id);
+	};
+	
+	if (!todoData) {
+		return null;
+	}
+	
+	const { id: todoId, text, done, priority, dueDate } = todoData;
 	const color = priorityColors[priority as 'low' | 'medium' | 'high'];
 
 	//show due date month/day when curren year is same as due date year

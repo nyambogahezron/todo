@@ -10,9 +10,9 @@ import {
 } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { validateTodoForm } from '@/utils/validation';
-import { Todo, useUpdateTodoCallback, updateTodo } from '@/store/todo';
+import { Todo } from '@/store/models';
+import { useUpdateTodo } from '@/store/todo.prisma';
 import { useTheme } from '@/context/ThemeContext';
-import {  useStore } from 'tinybase/ui-react';
 
 type TodoFormProps = {
 	initialData: Todo; 
@@ -22,8 +22,7 @@ type TodoFormProps = {
 
 export default function TodoForm({ initialData, onCancel, isEditing = true }: TodoFormProps) {
 	const { themeClrs } = useTheme();
-	const nowDate = new Date().toISOString();
-	const store = useStore();
+	const updateTodo = useUpdateTodo();
 
 	// Initialize form with existing todo data
 	const [title, setTitle] = useState(initialData.text || '');
@@ -34,14 +33,10 @@ export default function TodoForm({ initialData, onCancel, isEditing = true }: To
 		initialData.dueDate ? new Date(initialData.dueDate) : null
 	);
 	const [done, setDone] = useState(initialData.done || false);
-	const [updatedAt, setUpdatedAt] = useState(nowDate);
 	const [showDatePicker, setShowDatePicker] = useState(false);
 	const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
-	// Handler for updating an existing todo using the new todoSchema
-	const handleUpdateRow = useUpdateTodoCallback(initialData.id);
-
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		const errors = validateTodoForm({ title });
 
 		if (Object.keys(errors).length > 0) {
@@ -49,21 +44,20 @@ export default function TodoForm({ initialData, onCancel, isEditing = true }: To
 			return;
 		}
 
-		// Manually update the needed cells before triggering the updatedAt callback
-		if (store) {
-			store.setPartialRow('todo', initialData.id, {
+		// Update the todo using Prisma
+		try {
+			await updateTodo(initialData.id, {
 				text: title,
 				done: done,
 				priority: priority,
 				dueDate: dueDate?.toISOString() || '',
 			});
-		}
-		
-		// Update the updatedAt timestamp
-		handleUpdateRow();
 
-		// Close the modal
-		onCancel();
+			// Close the modal
+			onCancel();
+		} catch (error) {
+			console.error('Error updating todo:', error);
+		}
 	};
 
 	const handleDateChange = (event: any, selectedDate?: Date) => {

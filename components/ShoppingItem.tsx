@@ -18,11 +18,11 @@ export default function ShoppingItem({ item, onToggleComplete, onDelete }: Shopp
     <Surface style={[
       styles.container, 
       { backgroundColor: theme.colors.surface },
-      item.purchased && styles.purchasedContainer
+      item.checked && styles.purchasedContainer
     ]}>
       <View style={styles.leftContainer}>
         <Checkbox
-          status={item.purchased ? 'checked' : 'unchecked'}
+          status={item.checked ? 'checked' : 'unchecked'}
           onPress={onToggleComplete}
         />
       </View>
@@ -35,7 +35,7 @@ export default function ShoppingItem({ item, onToggleComplete, onDelete }: Shopp
           <Text 
             style={[
               styles.title, 
-              item.purchased && styles.purchasedText
+              item.checked && styles.purchasedText
             ]}
             numberOfLines={1}
           >
@@ -47,17 +47,17 @@ export default function ShoppingItem({ item, onToggleComplete, onDelete }: Shopp
           <Text 
             style={[
               styles.quantity,
-              item.purchased && styles.purchasedText
+              item.checked && styles.purchasedText
             ]}
           >
-            {item.quantity} {item.unit || ''}
+            Qty: {item.quantity}
           </Text>
           
-          {item.price !== undefined && (
+          {item.price !== undefined && item.price > 0 && (
             <Text 
               style={[
                 styles.price,
-                item.purchased && styles.purchasedText
+                item.checked && styles.purchasedText
               ]}
             >
               ${(item.price * item.quantity).toFixed(2)}

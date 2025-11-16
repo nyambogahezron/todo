@@ -17,7 +17,7 @@ import CustomHeader from '@/components/ui/CustomHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import TodoItem from '@/components/todos/TodoItem';
 import KeyboardTodoInput from '@/components/todos/KeyboardTodoInput';
-import { useSortedTodos } from '@/store/todo';
+import { useTodos } from '@/store/todo.prisma';
 import { useTheme as ThemeContext } from '@/context/ThemeContext';
 
 export default function TodosScreen() {
@@ -80,8 +80,18 @@ export default function TodosScreen() {
 		setKeyboardInputVisible(true);
 	};
 
-	// Get the sorted todo IDs using the new schema
-	const sortedTodoIds = useSortedTodos();
+	// Get todos using Prisma
+	const { todos, loading, refresh } = useTodos();
+	
+	// Refresh todos when component mounts or when needed
+	React.useEffect(() => {
+		refresh();
+	}, [refresh]);
+	
+	// Convert todos to IDs for compatibility with existing renderItem
+	const sortedTodoIds = React.useMemo(() => {
+		return todos.map(todo => todo.id);
+	}, [todos]);
 
 	return (
 		<SafeAreaProvider>

@@ -3,7 +3,7 @@ import { View, TextInput, TouchableOpacity, StyleSheet, Keyboard, ScrollView, Mo
 import { Text, useTheme, Button, IconButton, Chip, List } from 'react-native-paper';
 import { Plus, Calendar, Clock, Flag, X } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useAddTodo } from '@/store/todo';
+import { useAddTodo } from '@/store/todo.prisma';
 import useGenerateId from '@/utils/generateId';
 
 interface KeyboardTodoInputProps {
@@ -103,10 +103,10 @@ const KeyboardTodoInput = ({ visible, onClose, inputRef }: KeyboardTodoInputProp
     });
   };
 
-  const handleAddTodo = () => {
+  const handleAddTodo = async () => {
     if (todoText.trim()) {
       // Use proper parameters for the addTodo function
-      addTodo({
+      await addTodo({
         text: todoText.trim(),
         done: false, 
         priority: priority,

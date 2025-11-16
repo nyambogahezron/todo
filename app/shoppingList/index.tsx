@@ -9,23 +9,27 @@ import {
 	Dimensions,
 } from 'react-native';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useStore, useTable } from 'tinybase/ui-react';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+	useAnimatedStyle,
+	useSharedValue,
+	withTiming,
+	withSpring,
+	Easing as ReanimatedEasing,
+} from 'react-native-reanimated';
 import {
-	SHOPPING_LISTS_TABLE,
-	SHOPPING_ITEMS_TABLE,
+	useShoppingLists,
+	useShoppingItems,
 	createShoppingList,
-	getAllShoppingLists,
-	getItemsByListId,
 	createShoppingItem,
 	updateShoppingItem,
 	deleteShoppingItem,
 	deleteShoppingList,
 	getTotalItems,
 	getTotalPrice,
-} from '@/store/shopping';
+} from '@/store/shopping.prisma';
 
 // Add type definitions
 interface ShoppingItem {
@@ -40,7 +44,6 @@ interface ShoppingItem {
 }
 
 export default function ShoppingList() {
-	const store = useStore();
 	const [selectedListId, setSelectedListId] = useState<string | null>(null);
 	const [newListTitle, setNewListTitle] = useState('');
 	const [newItemName, setNewItemName] = useState('');
@@ -58,56 +61,88 @@ export default function ShoppingList() {
 	// Bottom sheet ref
 	const bottomSheetRef = useRef<BottomSheet>(null);
 
-	// Use useTable hook instead of useStore for better reactivity
-	const shoppingLists = useTable(SHOPPING_LISTS_TABLE);
+	// Get shopping lists using Prisma
+	const { lists: shoppingListsData, loading: listsLoading, refresh: refreshLists } = useShoppingLists();
+	
+	// Get shopping items for selected list
+	const { items: shoppingItemsData, loading: itemsLoading, refresh: refreshItems } = useShoppingItems(selectedListId || '');
 
-	// Subscribe to shopping items using useTable
-	const allItems = useTable(SHOPPING_ITEMS_TABLE);
+	// Animation for grid container
+	const gridOpacity = useSharedValue(0);
+	const gridY = useSharedValue(20);
+	
+	// Initialize grid animation
+	useEffect(() => {
+		gridOpacity.value = withTiming(1, {
+			duration: 400,
+			easing: ReanimatedEasing.out(ReanimatedEasing.cubic),
+		});
+		gridY.value = withSpring(0, {
+			damping: 15,
+			stiffness: 100,
+		});
+	}, []);
+	
+	const gridAnimatedStyle = useAnimatedStyle(() => ({
+		opacity: gridOpacity.value,
+		transform: [{ translateY: gridY.value }],
+	}));
 
-	// Filter items for the selected list
+	// Convert lists array to object for compatibility
+	const shoppingLists = React.useMemo(() => {
+		const listsObj: Record<string, any> = {};
+		shoppingListsData.forEach(list => {
+			listsObj[list.id] = list;
+		});
+		return listsObj;
+	}, [shoppingListsData]);
+
+	// Convert items array to object for compatibility
 	const shoppingItems = React.useMemo(() => {
-		if (!selectedListId || !allItems) return {};
-		return Object.entries(allItems).reduce((acc, [id, item]: [string, any]) => {
-			if (item.listId === selectedListId) {
-				acc[id] = item;
-			}
-			return acc;
-		}, {} as Record<string, ShoppingItem>);
-	}, [selectedListId, allItems]);
+		const itemsObj: Record<string, ShoppingItem> = {};
+		shoppingItemsData.forEach(item => {
+			itemsObj[item.id] = item as ShoppingItem;
+		});
+		return itemsObj;
+	}, [shoppingItemsData]);
 
 	// Calculate totals
 	const totalItems = React.useMemo(() => {
-		if (!shoppingItems) return 0;
-		return Object.values(shoppingItems).reduce(
+		return shoppingItemsData.reduce(
 			(sum, item) => sum + (Number(item.quantity) || 0),
 			0
 		);
-	}, [shoppingItems]);
+	}, [shoppingItemsData]);
 
 	const totalPrice = React.useMemo(() => {
-		if (!shoppingItems) return 0;
-		return Object.values(shoppingItems).reduce((sum, item) => {
+		return shoppingItemsData.reduce((sum, item) => {
 			const quantity = Number(item.quantity) || 0;
 			const price = Number(item.price) || 0;
 			return sum + quantity * price;
 		}, 0);
-	}, [shoppingItems]);
+	}, [shoppingItemsData]);
 
 	// Create a new shopping list
-	const handleAddList = () => {
-		if (!store || !newListTitle.trim()) {
+	const handleAddList = async () => {
+		if (!newListTitle.trim()) {
 			Alert.alert('Error', 'Please enter a list title');
 			return;
 		}
 
-		const listId = createShoppingList(store, newListTitle);
-		setNewListTitle('');
-		setSelectedListId(listId);
+		try {
+			const listId = await createShoppingList(newListTitle);
+			setNewListTitle('');
+			setSelectedListId(listId);
+			refreshLists();
+		} catch (error) {
+			console.error('Error creating list:', error);
+			Alert.alert('Error', 'Failed to create list');
+		}
 	};
 
 	// Create a new shopping item
-	const handleAddItem = () => {
-		if (!store || !selectedListId) return;
+	const handleAddItem = async () => {
+		if (!selectedListId) return;
 
 		if (!newItemName.trim()) {
 			Alert.alert('Error', 'Please enter an item name');
@@ -115,8 +150,7 @@ export default function ShoppingList() {
 		}
 
 		try {
-			createShoppingItem(
-				store,
+			await createShoppingItem(
 				selectedListId,
 				newItemName,
 				Number(newItemQuantity) || 1,
@@ -126,6 +160,7 @@ export default function ShoppingList() {
 			setNewItemName('');
 			setNewItemQuantity('1');
 			setNewItemPrice('0');
+			refreshItems();
 		} catch (error) {
 			console.error('Error adding item:', error);
 			Alert.alert('Error', 'Failed to add item');
@@ -133,9 +168,13 @@ export default function ShoppingList() {
 	};
 
 	// Toggle item checked status
-	const toggleItemChecked = (itemId: string, currentValue: boolean) => {
-		if (!store) return;
-		updateShoppingItem(store, itemId, { checked: !currentValue });
+	const toggleItemChecked = async (itemId: string, currentValue: boolean) => {
+		try {
+			await updateShoppingItem(itemId, { checked: !currentValue });
+			refreshItems();
+		} catch (error) {
+			console.error('Error toggling item:', error);
+		}
 	};
 
 	// Delete a shopping item
@@ -144,9 +183,13 @@ export default function ShoppingList() {
 			{ text: 'Cancel', style: 'cancel' },
 			{
 				text: 'Delete',
-				onPress: () => {
-					if (store) {
-						deleteShoppingItem(store, itemId);
+				onPress: async () => {
+					try {
+						await deleteShoppingItem(itemId);
+						refreshItems();
+					} catch (error) {
+						console.error('Error deleting item:', error);
+						Alert.alert('Error', 'Failed to delete item');
 					}
 				},
 				style: 'destructive',
@@ -163,12 +206,16 @@ export default function ShoppingList() {
 				{ text: 'Cancel', style: 'cancel' },
 				{
 					text: 'Delete',
-					onPress: () => {
-						if (store) {
-							deleteShoppingList(store, listId);
+					onPress: async () => {
+						try {
+							await deleteShoppingList(listId);
 							if (selectedListId === listId) {
 								setSelectedListId(null);
 							}
+							refreshLists();
+						} catch (error) {
+							console.error('Error deleting list:', error);
+							Alert.alert('Error', 'Failed to delete list');
 						}
 					},
 					style: 'destructive',
@@ -232,17 +279,23 @@ export default function ShoppingList() {
 		});
 	};
 
-	const handleUpdateItem = () => {
-		if (!store || !editingItemId) return;
+	const handleUpdateItem = async () => {
+		if (!editingItemId) return;
 
-		updateShoppingItem(store, editingItemId, {
-			name: editItemData.name,
-			quantity: Number(editItemData.quantity),
-			price: Number(editItemData.price),
-		});
+		try {
+			await updateShoppingItem(editingItemId, {
+				name: editItemData.name,
+				quantity: Number(editItemData.quantity),
+				price: Number(editItemData.price),
+			});
 
-		setEditingItemId(null);
-		setEditItemData({ name: '', quantity: '', price: '' });
+			setEditingItemId(null);
+			setEditItemData({ name: '', quantity: '', price: '' });
+			refreshItems();
+		} catch (error) {
+			console.error('Error updating item:', error);
+			Alert.alert('Error', 'Failed to update item');
+		}
 	};
 
 	// Add a function to initialize and configure the BottomSheet instance
@@ -418,7 +471,7 @@ export default function ShoppingList() {
 				<Text style={styles.title}>Shopping Lists</Text>
 
 				{/* Shopping Lists Grid */}
-				<View style={styles.listsGrid}>
+				<Animated.View style={[styles.listsGrid, gridAnimatedStyle]}>
 					{shoppingLists &&
 						Object.entries(shoppingLists).map(([id, list]: [string, any]) => (
 							<TouchableOpacity
@@ -434,12 +487,7 @@ export default function ShoppingList() {
 								</Text>
 								<View style={styles.gridItemFooter}>
 									<Text style={styles.gridItemCount}>
-										{
-											Object.values(allItems || {}).filter(
-												(item) => item.listId === id
-											).length
-										}{' '}
-										items
+										{list.items?.length || 0} items
 									</Text>
 									<TouchableOpacity onPress={() => handleDeleteList(id)}>
 										<Ionicons name='trash-outline' size={20} color='red' />
@@ -463,7 +511,7 @@ export default function ShoppingList() {
 							<Ionicons name='add' size={24} color='white' />
 						</TouchableOpacity>
 					</View>
-				</View>
+				</Animated.View>
 
 				{/* Dynamically render the BottomSheet */}
 				{renderBottomSheet()}
