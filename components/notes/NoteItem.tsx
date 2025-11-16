@@ -16,7 +16,7 @@ import { LoadingIndicator } from '../ui/LoadingIndicator';
 import { ErrorDisplay } from '../ui/ErrorDisplay';
 import NoteEditor from './NoteEditor';
 import { Note } from '../../store/models';
-import { useNote, useDeleteNote } from '../../store/notes.prisma';
+import { useNote, useDeleteNote } from '../../store/notes';
 
 const NoteItem: React.FC = () => {
 	const theme = useTheme();

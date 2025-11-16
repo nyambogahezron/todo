@@ -3,7 +3,7 @@ import { View, TextInput, TouchableOpacity, StyleSheet, Keyboard, ScrollView, Mo
 import { Text, useTheme, Button, IconButton, Chip, List } from 'react-native-paper';
 import { Plus, Calendar, Clock, Flag, X } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useAddTodo } from '@/store/todo.prisma';
+import { useAddTodo } from '@/store/todo';
 import useGenerateId from '@/utils/generateId';
 
 interface KeyboardTodoInputProps {

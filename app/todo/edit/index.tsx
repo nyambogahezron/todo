@@ -4,7 +4,7 @@ import { View, StyleSheet, TextInput, Text, TouchableOpacity, ScrollView } from 
 import { useTheme } from '@/context/ThemeContext';
 import CustomHeader from '@/components/ui/CustomHeader';
 import { useRoute } from '@react-navigation/native';
-import { useTodo, useUpdateTodo } from '@/store/todo.prisma';
+import { useTodo, useUpdateTodo } from '@/store/todo';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import Animated, { 

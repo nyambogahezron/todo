@@ -29,7 +29,7 @@ import {
 	deleteShoppingList,
 	getTotalItems,
 	getTotalPrice,
-} from '@/store/shopping.prisma';
+} from '@/store/shopping';
 
 // Add type definitions
 interface ShoppingItem {

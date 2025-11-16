@@ -3,7 +3,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { priorityColors } from '@/lib/utils';
 import { Bell, Circle, CircleCheckBig } from 'lucide-react-native';
 import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
-import { useDeleteTodo, useTodo, useToggleTodoDone } from '@/store/todo.prisma';
+import { useDeleteTodo, useTodo, useToggleTodoDone } from '@/store/todo';
 import SwipeableRow from '../ui/SwipeableRow';
 import { useNavigation } from '@react-navigation/native';
 
