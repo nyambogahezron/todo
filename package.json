@@ -33,6 +33,7 @@
     "expo-router": "~6.0.14",
     "expo-sqlite": "~16.0.9",
     "expo-status-bar": "~3.0.8",
+    "firebase": "^12.6.0",
     "lucide-react-native": "^0.479.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
