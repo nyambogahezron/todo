@@ -11,7 +11,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { validateTodoForm } from '@/utils/validation';
 import { Todo } from '@/store/models';
-import { useUpdateTodo } from '@/store/todo.prisma';
+import { useUpdateTodo } from '@/store/todo';
 import { useTheme } from '@/context/ThemeContext';
 
 type TodoFormProps = {

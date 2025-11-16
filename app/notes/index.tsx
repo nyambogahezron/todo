@@ -13,7 +13,7 @@ import { PaperProvider, Portal, useTheme } from 'react-native-paper';
 import CustomHeader from '@/components/ui/CustomHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import NotesList from '@/components/notes/NotesList';
-import { useNotes } from '@/store/notes.prisma';
+import { useNotes } from '@/store/notes';
 import { useTheme as ThemeContext } from '@/context/ThemeContext';
 import Animated, {
 	useAnimatedStyle,

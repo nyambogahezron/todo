@@ -24,7 +24,7 @@ import {
 	RichToolbar,
 } from 'react-native-pell-rich-editor';
 import { Note } from '../../store/models';
-import { useAddNote, useUpdateNote } from '../../store/notes.prisma';
+import { useAddNote, useUpdateNote } from '../../store/notes';
 
 interface NoteEditorProps {
 	note?: Note;
