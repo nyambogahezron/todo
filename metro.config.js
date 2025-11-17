@@ -6,5 +6,9 @@ const {
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = wrapWithReanimatedMetroConfig(getDefaultConfig(__dirname));
+config.resolver.sourceExts.push('sql');
 
 module.exports = config;
+
+
+

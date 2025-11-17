@@ -25,7 +25,7 @@ export default function TodosScreen() {
 	const [keyboardInputVisible, setKeyboardInputVisible] = useState(false);
 	const theme = useTheme();
 	const inputRef = React.useRef<any>(null);
-	const { theme: currentTheme, themeClrs } = ThemeContext();
+	const { themeName: currentTheme, themeClrs } = ThemeContext();
 
 	// Handle todo item click for editing
 	const handleTodoEdit = (todoId: string) => {
