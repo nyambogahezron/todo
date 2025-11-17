@@ -1,255 +1,250 @@
-import { getDb } from '@/lib/db';
-import { shoppingLists, shoppingItems } from '@/db/schema';
-import type { ShoppingList, ShoppingItem, InsertShoppingList, InsertShoppingItem } from '@/db/schema';
-import { useState, useEffect, useCallback } from 'react';
-import { randomUUID } from 'expo-crypto';
-import { eq, desc, asc } from 'drizzle-orm';
+import useGenerateId from '@/utils/generateId';
+import { Store } from 'tinybase';
 
-// Re-export types for compatibility
-export type { ShoppingList, ShoppingItem };
+// Table names
+export const SHOPPING_LISTS_TABLE = 'shoppingLists';
+export const SHOPPING_ITEMS_TABLE = 'shoppingItems';
 
-// Type for shopping list with items
-export type ShoppingListWithItems = ShoppingList & { items: ShoppingItem[] };
+// Schema definitions with QUOTED string literals
+export const shoppingListsTableSchema = {
+  id: { type: 'string' as const },
+  title: { type: 'string' as const },
+  createdAt: { type: 'number' as const },
+  updatedAt: { type: 'number' as const }
+};
+
+export const shoppingItemsTableSchema = {
+  id: { type: 'string' as const },
+  listId: { type: 'string' as const },
+  name: { type: 'string' as const },
+  quantity: { type: 'number' as const },
+  price: { type: 'number' as const },
+  checked: { type: 'boolean' as const },
+  createdAt: { type: 'number' as const },
+  updatedAt: { type: 'number' as const }
+};
+
+// Initialize the shopping lists table
+export const setupShoppingTables = (store: Store) => {
+  // Initialize tables with schemas
+  if (!store.hasTable(SHOPPING_LISTS_TABLE)) {
+    store.setTablesSchema({
+      [SHOPPING_LISTS_TABLE]: shoppingListsTableSchema,
+      [SHOPPING_ITEMS_TABLE]: shoppingItemsTableSchema
+    });
+    
+    // Create empty tables
+    store.setTable(SHOPPING_LISTS_TABLE, {});
+    store.setTable(SHOPPING_ITEMS_TABLE, {});
+  }
+};
+
+// Safe getter for tables that might not exist yet
+const safeGetTable = (store: Store, tableName: string) => {
+  try {
+    const table = store.getTable(tableName);
+    return table || {};
+  } catch (error) {
+    console.warn(`Error getting table ${tableName}:`, error);
+    return {};
+  }
+};
 
 // CRUD operations for shopping lists
-export const createShoppingList = async (title: string): Promise<string> => {
-  const db = getDb();
-  const id = randomUUID();
+export const createShoppingList = (store: Store, title: string) => {
+  const id = useGenerateId();
   const now = Date.now();
-
-  await db.insert(shoppingLists).values({
-    id,
-    title,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return id;
-};
-
-export const getShoppingList = async (id: string): Promise<ShoppingListWithItems | null> => {
-  const db = getDb();
-  const list = await db.select().from(shoppingLists).where(eq(shoppingLists.id, id)).limit(1);
-  if (!list[0]) return null;
-
-  const items = await db.select().from(shoppingItems).where(eq(shoppingItems.listId, id));
   
-  return {
-    ...list[0],
-    items: items || [],
-  };
-};
-
-export const getAllShoppingLists = async (): Promise<ShoppingListWithItems[]> => {
-  const db = getDb();
-  const lists = await db.select().from(shoppingLists).orderBy(desc(shoppingLists.updatedAt));
-  
-  // Fetch items for each list
-  const listsWithItems = await Promise.all(
-    lists.map(async (list) => {
-      const items = await db.select().from(shoppingItems).where(eq(shoppingItems.listId, list.id));
-      return {
-        ...list,
-        items: items || [],
-      };
-    })
-  );
-
-  return listsWithItems;
-};
-
-export const updateShoppingList = async (
-  id: string,
-  title: string
-): Promise<void> => {
-  const db = getDb();
-  await db
-    .update(shoppingLists)
-    .set({
+  try {
+    store.setRow(SHOPPING_LISTS_TABLE, id, {
+      id,
       title,
-      updatedAt: Date.now(),
-    })
-    .where(eq(shoppingLists.id, id));
+      createdAt: now,
+      updatedAt: now
+    });
+    return id;
+  } catch (error) {
+    console.error("Error creating shopping list:", error);
+    return "";
+  }
 };
 
-export const deleteShoppingList = async (id: string): Promise<void> => {
-  const db = getDb();
-  // Delete items first (or rely on CASCADE if supported)
-  await db.delete(shoppingItems).where(eq(shoppingItems.listId, id));
-  // Then delete the list
-  await db.delete(shoppingLists).where(eq(shoppingLists.id, id));
+export const getShoppingList = (store: Store, id: string) => {
+  try {
+    return store.getRow(SHOPPING_LISTS_TABLE, id) || null;
+  } catch (error) {
+    console.warn(`Error getting list ${id}:`, error);
+    return null;
+  }
+};
+
+export const getAllShoppingLists = (store: Store) => {
+  return safeGetTable(store, SHOPPING_LISTS_TABLE);
+};
+
+export const updateShoppingList = (store: Store, id: string, title: string) => {
+  try {
+    store.setPartialRow(SHOPPING_LISTS_TABLE, id, {
+      title,
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error(`Error updating list ${id}:`, error);
+  }
+};
+
+export const deleteShoppingList = (store: Store, id: string) => {
+  try {
+    // Delete all items in the list first
+    const items = safeGetTable(store, SHOPPING_ITEMS_TABLE);
+    Object.entries(items).forEach(([itemId, item]) => {
+      if (item && item.listId === id) {
+        try {
+          store.delRow(SHOPPING_ITEMS_TABLE, itemId);
+        } catch (e) {
+          console.warn(`Error deleting item ${itemId}:`, e);
+        }
+      }
+    });
+    
+    // Then delete the list
+    store.delRow(SHOPPING_LISTS_TABLE, id);
+  } catch (error) {
+    console.error(`Error deleting list ${id}:`, error);
+  }
 };
 
 // CRUD operations for shopping items
-export const createShoppingItem = async (
-  listId: string,
-  name: string,
-  quantity: number = 1,
+export const createShoppingItem = (
+  store: Store, 
+  listId: string, 
+  name: string, 
+  quantity: number = 1, 
   price: number = 0
-): Promise<string> => {
-  const db = getDb();
-  const id = randomUUID();
+) => {
+  const id = useGenerateId();
   const now = Date.now();
-
-  await db.insert(shoppingItems).values({
-    id,
-    listId,
-    name: name || 'Unnamed Item',
-    quantity: isNaN(Number(quantity)) ? 1 : Number(quantity),
-    price: isNaN(Number(price)) ? 0 : Number(price),
-    checked: false,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return id;
+  
+  try {
+    // Ensure quantity and price are valid numbers
+    const safeQuantity = isNaN(Number(quantity)) ? 1 : Number(quantity);
+    const safePrice = isNaN(Number(price)) ? 0 : Number(price);
+    
+    store.setRow(SHOPPING_ITEMS_TABLE, id, {
+      id,
+      listId,
+      name: name || "Unnamed Item",
+      quantity: safeQuantity,
+      price: safePrice,
+      checked: false,
+      createdAt: now,
+      updatedAt: now
+    });
+    
+    return id;
+  } catch (error) {
+    console.error("Error creating shopping item:", error);
+    return "";
+  }
 };
 
-export const getShoppingItem = async (id: string): Promise<ShoppingItem | null> => {
-  const db = getDb();
-  const result = await db.select().from(shoppingItems).where(eq(shoppingItems.id, id)).limit(1);
-  return result[0] || null;
+export const getShoppingItem = (store: Store, id: string) => {
+  try {
+    return store.getRow(SHOPPING_ITEMS_TABLE, id) || null;
+  } catch (error) {
+    console.warn(`Error getting item ${id}:`, error);
+    return null;
+  }
 };
 
-export const getItemsByListId = async (listId: string): Promise<ShoppingItem[]> => {
-  const db = getDb();
-  return await db
-    .select()
-    .from(shoppingItems)
-    .where(eq(shoppingItems.listId, listId))
-    .orderBy(asc(shoppingItems.createdAt));
+export const getItemsByListId = (store: Store, listId: string) => {
+  try {
+    const items = store.getTable(SHOPPING_ITEMS_TABLE) || {};
+    const listItems: Record<string, any> = {};
+    
+    Object.entries(items).forEach(([id, item]) => {
+      if (item && item.listId === listId) {
+        listItems[id] = {
+          ...item,
+          quantity: Number(item.quantity) || 0,
+          price: Number(item.price) || 0
+        };
+      }
+    });
+    
+    return listItems;
+  } catch (error) {
+    console.warn(`Error getting items for list ${listId}:`, error);
+    return {};
+  }
 };
 
-export const updateShoppingItem = async (
-  id: string,
+export const updateShoppingItem = (
+  store: Store, 
+  id: string, 
   updates: {
     name?: string;
     quantity?: number;
     price?: number;
     checked?: boolean;
   }
-): Promise<void> => {
-  const db = getDb();
-  const safeUpdates: any = { ...updates, updatedAt: Date.now() };
-
-  if (updates.quantity !== undefined) {
-    safeUpdates.quantity = isNaN(Number(updates.quantity)) ? 0 : Number(updates.quantity);
+) => {
+  try {
+    // Ensure quantity and price are valid numbers if provided
+    const safeUpdates = { ...updates };
+    if (updates.quantity !== undefined) {
+      safeUpdates.quantity = isNaN(Number(updates.quantity)) ? 0 : Number(updates.quantity);
+    }
+    if (updates.price !== undefined) {
+      safeUpdates.price = isNaN(Number(updates.price)) ? 0 : Number(updates.price);
+    }
+    
+    store.setPartialRow(SHOPPING_ITEMS_TABLE, id, {
+      ...safeUpdates,
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error(`Error updating item ${id}:`, error);
   }
-  if (updates.price !== undefined) {
-    safeUpdates.price = isNaN(Number(updates.price)) ? 0 : Number(updates.price);
-  }
-
-  await db
-    .update(shoppingItems)
-    .set(safeUpdates)
-    .where(eq(shoppingItems.id, id));
 };
 
-export const deleteShoppingItem = async (id: string): Promise<void> => {
-  const db = getDb();
-  await db.delete(shoppingItems).where(eq(shoppingItems.id, id));
+export const deleteShoppingItem = (store: Store, id: string) => {
+  try {
+    store.delRow(SHOPPING_ITEMS_TABLE, id);
+  } catch (error) {
+    console.error(`Error deleting item ${id}:`, error);
+  }
 };
 
 // Helper functions for calculations
-export const getTotalItems = async (listId: string): Promise<number> => {
-  const items = await getItemsByListId(listId);
-  if (!items || items.length === 0) return 0;
-
-  return items.reduce((total, item) => {
-    const quantity = Number(item.quantity) || 0;
-    return total + quantity;
-  }, 0);
+export const getTotalItems = (store: Store, listId: string): number => {
+  try {
+    const items = getItemsByListId(store, listId);
+    if (!items || Object.keys(items).length === 0) return 0;
+    
+    return Object.values(items).reduce((total, item: any) => {
+      const quantity = Number(item?.quantity) || 0;
+      return total + quantity;
+    }, 0);
+  } catch (error) {
+    console.error(`Error calculating total items for list ${listId}:`, error);
+    return 0;
+  }
 };
 
-export const getTotalPrice = async (listId: string): Promise<number> => {
-  const items = await getItemsByListId(listId);
-  if (!items || items.length === 0) return 0;
-
-  return items.reduce((total, item) => {
-    const quantity = Number(item.quantity) || 0;
-    const price = Number(item.price) || 0;
-    return total + quantity * price;
-  }, 0);
-};
-
-// React hooks for components
-export const useShoppingLists = (): {
-  lists: ShoppingListWithItems[];
-  loading: boolean;
-  refresh: () => Promise<void>;
-} => {
-  const [lists, setLists] = useState<ShoppingListWithItems[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const allLists = await getAllShoppingLists();
-      setLists(allLists);
-    } catch (error) {
-      console.error('Error loading shopping lists:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { lists, loading, refresh };
-};
-
-export const useShoppingList = (id: string): {
-  list: ShoppingListWithItems | null;
-  loading: boolean;
-  refresh: () => Promise<void>;
-} => {
-  const [list, setList] = useState<ShoppingListWithItems | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getShoppingList(id);
-      setList(result);
-    } catch (error) {
-      console.error('Error loading shopping list:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { list, loading, refresh };
-};
-
-export const useShoppingItems = (listId: string): {
-  items: ShoppingItem[];
-  loading: boolean;
-  refresh: () => Promise<void>;
-} => {
-  const [items, setItems] = useState<ShoppingItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const listItems = await getItemsByListId(listId);
-      setItems(listItems);
-    } catch (error) {
-      console.error('Error loading shopping items:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [listId]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { items, loading, refresh };
+export const getTotalPrice = (store: Store, listId: string): number => {
+  try {
+    const items = getItemsByListId(store, listId);
+    if (!items || Object.keys(items).length === 0) return 0;
+    
+    return Object.values(items).reduce((total, item: any) => {
+      if (!item) return total;
+      const quantity = Number(item.quantity) || 0;
+      const price = Number(item.price) || 0;
+      return total + (quantity * price);
+    }, 0);
+  } catch (error) {
+    console.error(`Error calculating total price for list ${listId}:`, error);
+    return 0;
+  }
 };
