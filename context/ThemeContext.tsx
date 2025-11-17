@@ -2,42 +2,65 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Provider as PaperProvider } from 'react-native-paper';
-import { lightTheme, darkTheme } from '../constants/Colors';
+import { themes, ThemeName, ThemeType } from '../constants/Colors';
 
-const ThemeContext = createContext({
-	theme: 'light',
-	toggleTheme: () => {},
-	themeClrs: {
-		colors: lightTheme.colors,
-	},
+interface ThemeContextType {
+	themeName: ThemeName;
+	setTheme: (theme: ThemeName) => Promise<void>;
+	toggleTheme: () => Promise<void>;
+	themeClrs: ThemeType;
+	isDarkMode: boolean;
+}
+
+const ThemeContext = createContext<ThemeContextType>({
+	themeName: 'light',
+	setTheme: async () => {},
+	toggleTheme: async () => {},
+	themeClrs: themes.light,
+	isDarkMode: false,
 });
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 	const deviceTheme = useColorScheme();
-	const [theme, setTheme] = useState<string>(deviceTheme || 'light');
+	const [themeName, setThemeName] = useState<ThemeName>('light');
 
 	useEffect(() => {
 		const loadTheme = async () => {
 			const storedTheme = await AsyncStorage.getItem('user-theme');
-			if (storedTheme) {
-				setTheme(storedTheme);
+			if (storedTheme && storedTheme in themes) {
+				setThemeName(storedTheme as ThemeName);
 			} else {
-				setTheme(deviceTheme || 'light');
+				// Default to device theme if available
+				const defaultTheme = deviceTheme === 'dark' ? 'dark' : 'light';
+				setThemeName(defaultTheme);
 			}
 		};
 		loadTheme();
 	}, [deviceTheme]);
 
-	const toggleTheme = async () => {
-		const newTheme = theme === 'light' ? 'dark' : 'light';
-		setTheme(newTheme);
-		await AsyncStorage.setItem('user-theme', newTheme);
+	const setTheme = async (theme: ThemeName) => {
+		setThemeName(theme);
+		await AsyncStorage.setItem('user-theme', theme);
 	};
 
-	const themeClrs = theme === 'light' ? lightTheme : darkTheme;
+	const toggleTheme = async () => {
+		const newTheme = themeName === 'light' ? 'dark' : 'light';
+		await setTheme(newTheme);
+	};
+
+	const themeClrs = themes[themeName];
+	const isDarkMode = themeName === 'dark';
 
 	return (
-		<ThemeContext.Provider value={{ theme, toggleTheme, themeClrs }}>
+		<ThemeContext.Provider 
+			value={{ 
+				themeName, 
+				setTheme, 
+				toggleTheme, 
+				themeClrs,
+				isDarkMode
+			}}
+		>
 			<PaperProvider theme={themeClrs}>{children}</PaperProvider>
 		</ThemeContext.Provider>
 	);
