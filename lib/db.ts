@@ -1,61 +1,58 @@
-import { PrismaClient } from '@prisma/client';
-import { Platform } from 'react-native';
+import { drizzle } from 'drizzle-orm/expo-sqlite';
+import { openDatabaseSync } from 'expo-sqlite';
+import * as schema from '@/db/schema';
+import { runMigrations } from '@/db/migrations';
 
-// Singleton Prisma Client instance
-let prisma: PrismaClient | null = null;
+// Singleton database instance
+let db: ReturnType<typeof drizzle> | null = null;
+let sqliteDb: ReturnType<typeof openDatabaseSync> | null = null;
 
-// Get the database path for SQLite
-// For Prisma with React Native, the database URL is set in the schema
-// and Prisma will handle the file path automatically
-const getDatabaseUrl = (): string => {
-  // The URL is defined in schema.prisma, but we can override if needed
-  // For local-first, we use a relative path that Prisma will resolve
-  return 'file:./app.db';
-};
-
-// Initialize Prisma Client
-export const getPrismaClient = (): PrismaClient => {
-  if (prisma) {
-    return prisma;
-  }
-
-  prisma = new PrismaClient({
-    log: __DEV__ ? ['query', 'error', 'warn'] : ['error'],
-  });
-
-  return prisma;
-};
-
-// Initialize database connection
-export const initializeDatabase = async (): Promise<PrismaClient> => {
+// Initialize the database
+export const initializeDatabase = async () => {
   try {
-    const client = getPrismaClient();
-    // Test the connection
-    await client.$connect();
-    console.log('✅ Database connected successfully');
-    return client;
+    if (!sqliteDb) {
+      // Open SQLite database
+      sqliteDb = openDatabaseSync('app.db');
+      
+      // Create Drizzle ORM instance
+      db = drizzle(sqliteDb, { schema });
+      
+      // Run migrations to create tables
+      await runMigrations(sqliteDb);
+      
+      console.log('✅ Database initialized successfully');
+    }
+    
+    return db;
   } catch (error) {
-    console.error('❌ Database connection error:', error);
+    console.error('❌ Database initialization error:', error);
     throw error;
   }
 };
 
-// Cleanup function
-export const disconnectDatabase = async (): Promise<void> => {
-  if (prisma) {
-    await prisma.$disconnect();
-    prisma = null;
-  }
-};
-
-// Export a synchronous getter (for use after initialization)
-export const getDb = (): PrismaClient => {
-  if (!prisma) {
+// Get the database instance (must be initialized first)
+export const getDb = () => {
+  if (!db) {
     throw new Error('Database not initialized. Call initializeDatabase() first.');
   }
-  return prisma;
+  return db;
 };
 
-// Export the client as default
-export default getPrismaClient;
+// Cleanup function
+export const disconnectDatabase = async (): Promise<void> => {
+  if (sqliteDb) {
+    try {
+      sqliteDb.closeSync();
+      sqliteDb = null;
+      db = null;
+      console.log('✅ Database disconnected successfully');
+    } catch (error) {
+      console.error('❌ Database disconnect error:', error);
+      throw error;
+    }
+  }
+};
+
+// Export database for direct use
+export { db };
 

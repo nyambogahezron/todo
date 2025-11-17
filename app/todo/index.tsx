@@ -17,7 +17,7 @@ import CustomHeader from '@/components/ui/CustomHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import TodoItem from '@/components/todos/TodoItem';
 import KeyboardTodoInput from '@/components/todos/KeyboardTodoInput';
-import { useTodos } from '@/store/todo.prisma';
+import { useTodos } from '@/store/todo';
 import { useTheme as ThemeContext } from '@/context/ThemeContext';
 
 export default function TodosScreen() {
