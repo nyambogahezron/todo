@@ -70,8 +70,6 @@ export default function App() {
 								component={SCREENS.ShoppingList}
 							/>
 							<Drawer.Screen name='Theme' component={SCREENS.Theme} />
-							<Drawer.Screen name='Widget' component={SCREENS.Widget} />
-							<Drawer.Screen name='Donate' component={SCREENS.Donate} />
 							<Drawer.Screen name='Profile' component={SCREENS.Profile} />
 							<Drawer.Screen name='Settings' component={SCREENS.SettingsScreen} />
 							<Drawer.Screen name='EditTodo' component={SCREENS.EditTodoScreen} />
